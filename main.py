@@ -23,39 +23,24 @@ class Worker(QThread):
         self.file_paths = file_paths  # 待转换文件路径列表
 
     def run(self):
-        # 获取当前工作目录下的bin路径
-        bin_dir = os.path.join(os.getcwd(), "bin")
-        ww2ogg = os.path.join(bin_dir, "ww2ogg.exe")
-        codebooks = os.path.join(bin_dir, "packed_codebooks_aoTuV_603.bin")
-        revorb = os.path.join(bin_dir, "revorb.exe")
-        
+        if not self.file_paths: return
+
+        output_dir = "output"
+        os.makedirs(output_dir, exist_ok=True)
+        vgmstream_cli = os.path.join(os.getcwd(), "vgmstream", "vgmstream-cli.exe")
+        assert os.path.exists(vgmstream_cli), "vgmstream-cli.exe not found"
+
         for idx, src_path in enumerate(self.file_paths):
             try:
                 # ================= 实际转换逻辑 =================
-                output_dir = "output"
-                os.makedirs(output_dir, exist_ok=True)
                 filename = os.path.basename(src_path)
-                output_path = os.path.join(output_dir, filename.replace('.wem', '.ogg'))
-                
-                # 第一步：使用ww2ogg转换文件
-                ww2ogg_cmd = [
-                    ww2ogg,
-                    src_path,
-                    '--pcb', codebooks,
-                    '-o', output_path
-                ]
-                print(f"ww2ogg cmd: {ww2ogg_cmd}")
-                # 执行ww2ogg命令并打印输出
-                result = subprocess.run(ww2ogg_cmd, check=True, capture_output=True)
-                print(f"ww2ogg stdout: {result.stdout.decode('utf-8')}")
-                print(f"ww2ogg stderr: {result.stderr.decode('utf-8')}")
-                
-                # 第二步：使用revorb优化文件
-                revorb_cmd = [revorb, output_path]
-                # 执行revorb命令并打印输出
-                result = subprocess.run(revorb_cmd, check=True, capture_output=True)
-                print(f"revorb stdout: {result.stdout.decode('utf-8')}")
-                print(f"revorb stderr: {result.stderr.decode('utf-8')}")
+                output_path = os.path.join(output_dir, filename.replace('.wem', '.wav'))
+                cmd = [vgmstream_cli, "-o", output_path, src_path]
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    print(f"Error:{result.stderr}")
+                    self.conversion_done.emit(idx, f"Error:{result.stderr}")
+                    continue
                 # ==============================================
 
                 self.conversion_done.emit(idx, output_path)
@@ -96,20 +81,20 @@ class MainWindow(QWidget):
         self.table = QTableWidget(10, 2)  # 10行2列
         self.table.setHorizontalHeaderLabels(["源文件", "输出文件"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)  # 整行选择
-        
+
         # 设置表格为只读模式
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        
+
         # 设置列宽：第一列固定宽度，第二列自动填充
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Fixed)  # 第一列固定宽度
         header.setSectionResizeMode(1, QHeaderView.Stretch)  # 第二列自动拉伸
         self.table.setColumnWidth(0, 300)  # 设置第一列宽度为300像素
-        
+
         # 设置上下文菜单策略
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self.show_context_menu)
-        
+
         main_layout.addWidget(self.table)
 
         # 进度条
@@ -140,17 +125,17 @@ class MainWindow(QWidget):
             [url.toLocalFile().replace('/', '\\') for url in event.mimeData().urls()],
             key=lambda x: os.path.basename(x)
         )
-        
+
         # 清空表格并设置行数等于文件数量
         self.table.setRowCount(len(self.files))
-        
+
         # 填充所有文件（只显示文件名，悬停显示完整路径）
         for row in range(len(self.files)):
             # 源文件列
             src_item = QTableWidgetItem(os.path.basename(self.files[row]))
             src_item.setToolTip(self.files[row])  # 设置悬停提示为完整路径
             self.table.setItem(row, 0, src_item)
-            
+
             # 输出文件列（初始为空）
             out_item = QTableWidgetItem("")
             self.table.setItem(row, 1, out_item)
@@ -185,9 +170,9 @@ class MainWindow(QWidget):
         for row in selected_rows:
             output_item = self.table.item(row, 1)
             if output_item and not output_item.text().startswith("Error:"):
-                output_path = output_item.text()
+                output_path = output_item.toolTip()
                 # ================= 用户自定义播放逻辑 =================
-                print(f"播放文件: {output_path}")  # 替换为实际播放代码
+                os.startfile(output_path)
                 # ====================================================
 
     def copy_selected_output_paths(self):
@@ -198,7 +183,7 @@ class MainWindow(QWidget):
             output_item = self.table.item(row, 1)  # 第二列是输出文件
             if output_item and output_item.text():
                 output_paths.append(output_item.text())
-        
+
         if output_paths:
             clipboard = QApplication.clipboard()
             clipboard.setText("\n".join(output_paths))
@@ -215,23 +200,23 @@ class MainWindow(QWidget):
         row = self.table.indexAt(pos).row()
         if row < 0:  # 点击在表格外
             return
-            
+
         # 获取输出文件项
         output_item = self.table.item(row, 1)
         if not output_item or not output_item.text():
             return
-            
+
         # 创建菜单
         menu = QMenu(self)
         copy_action = menu.addAction("复制路径")
-        
+
         # 显示菜单并等待用户选择
         action = menu.exec(self.table.viewport().mapToGlobal(pos))
-        
+
         # 处理复制操作
         if action == copy_action:
             self.copy_output_path(row)
-            
+
     def copy_output_path(self, row):
         """复制指定行的输出路径"""
         output_item = self.table.item(row, 1)
