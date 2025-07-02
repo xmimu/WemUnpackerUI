@@ -6,7 +6,8 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QProgressBar,
     QPushButton, QAbstractItemView,
     QHeaderView,  # 添加QHeaderView用于列宽设置
-    QMenu  # 新增，用于右键菜单
+    QMenu,  # 新增，用于右键菜单
+    QMessageBox  # 新增，用于帮助对话框
 )
 from PySide6.QtCore import Qt, QThread, Signal
 # 导入剪贴板模块
@@ -69,12 +70,15 @@ class MainWindow(QWidget):
         self.convert_btn = QPushButton("转换")
         self.play_btn = QPushButton("播放")
         self.copy_btn = QPushButton("复制")
-        # 添加清空按钮
         self.clear_btn = QPushButton("清空")
+        # 新增帮助按钮
+        self.help_btn = QPushButton("帮助")
+        
         toolbar.addWidget(self.convert_btn)
         toolbar.addWidget(self.play_btn)
         toolbar.addWidget(self.copy_btn)
-        toolbar.addWidget(self.clear_btn)  # 添加清空按钮
+        toolbar.addWidget(self.clear_btn)
+        toolbar.addWidget(self.help_btn)  # 添加帮助按钮
         main_layout.addLayout(toolbar)
 
         # 文件表格
@@ -108,7 +112,9 @@ class MainWindow(QWidget):
         # 连接复制按钮和清空按钮的点击事件
         self.copy_btn.clicked.connect(self.copy_selected_output_paths)
         self.clear_btn.clicked.connect(self.clear_table)
-
+        # 连接帮助按钮的点击事件
+        self.help_btn.clicked.connect(self.show_help)
+        
         self.setLayout(main_layout)
 
     def dragEnterEvent(self, event):
@@ -223,7 +229,36 @@ class MainWindow(QWidget):
         if output_item and output_item.text():
             clipboard = QApplication.clipboard()
             clipboard.setText(output_item.toolTip())  # 使用toolTip中的完整路径
-
+    
+    def show_help(self):
+        """显示使用帮助对话框"""
+        help_text = """
+        <b>WEM转换工具使用说明</b><br><br>
+        
+        <b>基本功能：</b><br>
+        1. 拖放：将.wem文件拖放到窗口区域<br>
+        2. 转换：点击"转换"按钮生成.wav文件<br>
+        3. 播放：选中文件后点击"播放"按钮测试输出<br>
+        4. 复制：复制选中文件的输出路径<br>
+        5. 清空：清空当前文件列表<br><br>
+        
+        <b>高级功能：</b><br>
+        - 右键菜单：在文件行上右键点击，可复制完整输出路径<br>
+        - 文件信息：鼠标悬停在文件名上可查看完整路径<br><br>
+        
+        <b>输出位置：</b><br>
+        转换后的文件保存在程序目录下的"output"文件夹中<br><br>
+        
+        <b>注意事项：</b><br>
+        - 需要vgmstream-cli.exe在vgmstream目录下<br>
+        - 仅支持.wem格式文件输入<br>
+        """
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("使用帮助")
+        msg_box.setTextFormat(Qt.TextFormat.RichText)
+        msg_box.setText(help_text)
+        msg_box.exec()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
