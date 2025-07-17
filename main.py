@@ -37,7 +37,7 @@ class Worker(QThread):
                 filename = os.path.basename(src_path)
                 output_path = os.path.join(output_dir, filename.replace('.wem', '.wav'))
                 cmd = [vgmstream_cli, "-o", output_path, src_path]
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                result = subprocess.run(cmd, capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
                 if result.returncode != 0:
                     print(f"Error:{result.stderr}")
                     self.conversion_done.emit(idx, f"Error:{result.stderr}")
